@@ -1,6 +1,6 @@
-# jsoncargo — Container Tracking Node SDK
+# Container Tracking Node SDK
 
-> The official Node.js / TypeScript SDK for the jsoncargo API. Track containers, look up vessels, search ports and terminals — all from a single, typed client.
+The official Node.js / TypeScript SDK for the jsoncargo API. Track containers, look up vessels, and search ports and terminals from a single typed client.
 
 [![npm version](https://img.shields.io/npm/v/jsoncargo)](https://www.npmjs.com/package/jsoncargo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -14,7 +14,7 @@
 
 - **Track containers** by container number across 11 major shipping lines
 - **Look up Bills of Lading** to see all containers on a booking
-- **Monitor vessels** — live position, voyage detail, and static specs
+- **Monitor vessels** with live position, voyage detail, and static specs
 - **Find ports and terminals** by name, location, or UN/LOCODE
 
 Built for Node.js 18+ with full TypeScript support. Zero runtime dependencies.
@@ -113,7 +113,7 @@ console.log(vessel.dest_port, vessel.atd_UTC);
 const { total, vessels } = await client.vessels.bulk({ imo: '9811000' });
 ```
 
-### Vessel finder — search by name and attributes
+### Vessel finder, search by name and attributes
 
 ```ts
 const results = await client.vessels.finder({
@@ -180,15 +180,14 @@ try {
   const container = await client.containers.track('MSCU1234567', 'MSC');
 } catch (err) {
   if (err instanceof AuthenticationError) {
-    // 401: invalid key — check your API key
-    // 403: forbidden — key lacks permission for this endpoint
+    // 401: invalid key, 403: key lacks permission for this endpoint
     console.error(err.message, err.statusCode);
   } else if (err instanceof NotFoundError) {
     // 404: container not found
   } else if (err instanceof RateLimitError) {
     // 429: slow down
   } else if (err instanceof APIError) {
-    // Other HTTP or network error; err.statusCode may be set
+    // other HTTP or network error; err.statusCode may be set
     console.error(err.statusCode, err.message);
   }
 }
@@ -209,7 +208,7 @@ const client = new Client(apiKey, {
 
 ## TypeScript
 
-The SDK is written in TypeScript and ships its own types — no `@types/` package needed.
+The SDK is written in TypeScript and ships its own types, no `@types/` package needed.
 
 ```ts
 import type {
