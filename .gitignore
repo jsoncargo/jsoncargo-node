@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment / local config
+.env
+.env.*
+*.env
+.npmrc
+
+# Coverage
+coverage/
+
+# Logs
+*.log
+
+# IDE / AI tooling
+.vscode/
+.idea/
+.claude/
+
+# OS artefacts
+.DS_Store
+Thumbs.db
