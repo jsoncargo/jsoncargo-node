@@ -1,59 +1,124 @@
-# jsoncargo Node.js SDK — Agent Instructions
+# jsoncargo Node.js SDK
 
-TypeScript SDK for a container and vessel tracking API. Dual CJS + ESM build targeting Node.js 18+.
+TypeScript SDK for container and vessel tracking. Requires Node.js 18+.
 
-## Setup
-
-```bash
-npm install
-```
-
-## Build
+## Installation
 
 ```bash
-npm run build        # all outputs
-npm run build:esm    # dist/esm/  (ESM, NodeNext)
-npm run build:cjs    # dist/cjs/  (CommonJS)
-npm run build:types  # dist/types/ (declarations)
+npm install jsoncargo
 ```
 
-## Test
+## Initializing the client
 
-```bash
-npm test
+```ts
+import { Client } from 'jsoncargo';
+
+const client = new Client(process.env.JSONCARGO_API_KEY);
 ```
 
-Tests use Jest with `ts-jest` in ESM mode. All tests mock `global.fetch` — no live network calls.
+The API key is passed as the first argument. Never hardcode keys — use the `JSONCARGO_API_KEY` environment variable.
 
-## Project structure
+Optional second argument:
 
-```
-src/
-  client.ts       # Client class, _get(), stats()
-  containers.ts   # track(), fromBol()
-  vessels.ts      # basic(), pro(), bulk(), finder(), specs()
-  ports.ts        # find()
-  terminals.ts    # find()
-  models.ts       # TypeScript interfaces for all API response shapes
-  errors.ts       # JSONCargoError hierarchy
-  index.ts        # Public re-exports
-tests/
-  client.test.ts
+```ts
+new Client(apiKey, {
+  timeout: 10000,   // request timeout in ms (default: 30 000)
+  baseUrl: '...',   // override the API base URL
+});
 ```
 
-## Key conventions
+## Resources
 
-- **Auth**: API key goes in the `x-api-key` request header. Use the `JSONCARGO_API_KEY` environment variable for manual testing — never hardcode keys.
-- **Validation**:
-  - Container number must match `^[A-Z]{4}\d{7}$`
-  - BOL must not contain `/\%#?&+`, null bytes, or `..`
-  - Shipping line must be one of the 11 known values in `VALID_SHIPPING_LINES`
-  - API key is a non-empty string check only
-- **Error hierarchy**: `JSONCargoError` → `AuthenticationError` (401/403), `NotFoundError` (404), `RateLimitError` (429), `APIError` (all others; carries `statusCode`)
-- `AuthenticationError`, `NotFoundError`, and `RateLimitError` also carry a `statusCode` property
-- **Response unwrapping**: all successful responses are `{"data": {...}}`; the SDK returns the inner object only
-- **Timeout**: default 30 s via `AbortController`; override via `ClientOptions.timeout`
+### `client.containers`
 
-## Publishing
+```ts
+// Track a container by number + shipping line
+const container = await client.containers.track('MSCU1234567', 'MSC');
 
-Tag a release `v0.x.x` to trigger the publish workflow. Requires `NPM_TOKEN` repo secret.
+// Look up containers by bill of lading
+const bol = await client.containers.fromBol('BOLNUMBER', 'MAERSK');
+```
+
+### `client.vessels`
+
+All vessel methods accept a `VesselLookupParams` object. At least one of `uuid`, `mmsi`, or `imo` is required.
+
+```ts
+await client.vessels.basic({ mmsi: '123456789' });   // basic position + identity
+await client.vessels.pro({ imo: '9876543' });         // extended position + voyage
+await client.vessels.bulk({ mmsi: '123456789' });     // paginated vessel list
+await client.vessels.specs({ uuid: 'abc-123' });      // static particulars
+```
+
+`finder` searches by name and attribute filters. At least one search parameter is required (pagination params `page`, `limit`, `next` do not count).
+
+```ts
+await client.vessels.finder({ name: 'Ever Given', type: 'cargo' });
+```
+
+### `client.ports`
+
+At least one search parameter required (`page` and `limit` alone are not sufficient).
+
+```ts
+await client.ports.find({ name: 'Rotterdam', country_iso: 'NL' });
+await client.ports.find({ lat: 51.9, lon: 4.5, radius: 50 });
+```
+
+### `client.terminals`
+
+`unlocode` is required (minimum 2 characters).
+
+```ts
+await client.terminals.find({ unlocode: 'NLRTM' });
+```
+
+### `client.stats()`
+
+Returns plan and usage counters for the API key.
+
+```ts
+const stats = await client.stats();
+// { plan, requests_total, requests_made, requests_available }
+```
+
+## Validation
+
+Errors are thrown **before** any network call when input is invalid.
+
+| Input | Rule |
+|-------|------|
+| Container number | `^[A-Z]{4}\d{7}$` — 4 uppercase letters then 7 digits (e.g. `MSCU1234567`) |
+| Bill of lading | Must not contain `/`, `\`, `%`, `#`, `?`, `&`, `+`, null bytes, or `..` |
+| Shipping line | Must be one of the 11 values below |
+| Vessel lookup | At least one of `uuid`, `mmsi`, `imo` |
+| Vessel/port finder | At least one non-pagination search parameter |
+| Terminal | `unlocode` present and ≥ 2 characters |
+
+Valid shipping lines: `MAERSK`, `HAPAG_LLOYD`, `HMM`, `ONE`, `EVERGREEN`, `MSC`, `CMA_CGM`, `COSCO`, `ZIM`, `YANG_MING`, `PIL`
+
+## Errors
+
+All errors extend `JSONCargoError` and are importable from the package root.
+
+| Class | Trigger |
+|-------|---------|
+| `JSONCargoError` | Local validation failure (thrown before any HTTP call) |
+| `AuthenticationError` | HTTP 401 or 403 — invalid or unauthorized key |
+| `NotFoundError` | HTTP 404 — resource not found |
+| `RateLimitError` | HTTP 429 — rate limit exceeded |
+| `APIError` | Any other HTTP error; carries `.statusCode` |
+
+`AuthenticationError`, `NotFoundError`, and `RateLimitError` also carry a `.statusCode` property.
+
+```ts
+import { JSONCargoError, AuthenticationError, RateLimitError } from 'jsoncargo';
+
+try {
+  await client.containers.track('MSCU1234567', 'MSC');
+} catch (err) {
+  if (err instanceof RateLimitError) { /* back off */ }
+  if (err instanceof AuthenticationError) { /* check key */ }
+  if (err instanceof JSONCargoError) { /* validation or other SDK error */ }
+}
+```
